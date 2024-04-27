@@ -6,29 +6,30 @@ const parser = new xml2js.Parser();
 const Order = require('./model');
 
 async function adbCommand(command) {
-    return new Promise((resolve, reject) => {
-        exec(command, (error, stdout, stderr) => {
-            if (error) {
-                console.error(`Ошибка выполнения команды: ${command}`, stderr);
-                if (stderr.includes('code 137')) {
-                    console.log('Ошибка с кодом 137. Перезапуск сервера ADB...');
-                    exec('adb kill-server && adb start-server', (killError) => {
-                        if (killError) {
-                            console.error('Ошибка при перезапуске сервера ADB:', killError);
-                            reject(killError);
-                        } else {
-                            console.log('Сервер ADB успешно перезапущен.');
-                            resolve();
-                        }
-                    });
+    while (true) {
+        try {
+            return await new Promise((resolve, reject) => {
+                exec(command, (error, stdout, stderr) => {
+                    if (error) {
+                        console.error(`Ошибка выполнения команды: ${command}`, stderr);
+                        reject(error);
+                        return;
+                    }
+                    resolve(stdout.trim());
+                });
+            });
+        } catch (error) {
+            console.error('Ошибка при выполнении команды:', error);
+            console.log('Перезапуск сервера ADB...');
+            exec('adb kill-server && adb start-server', (killError) => {
+                if (killError) {
+                    console.error('Ошибка при перезапуске сервера ADB:', killError);
                 } else {
-                    reject(error);
+                    console.log('Сервер ADB успешно перезапущен.');
                 }
-                return;
-            }
-            resolve(stdout.trim());
-        });
-    });
+            });
+        }
+    }
 }
 
 
