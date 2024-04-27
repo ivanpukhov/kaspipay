@@ -104,6 +104,7 @@ async function processOrders() {
             {cmd: `adb shell input tap 50 910`, delay: 1500},
             {cmd: `adb shell input text '${orderToProcess.comment}'`, delay: 1500},
             {cmd: `adb shell input swipe 300 500 300 900 200`, delay: 1000},
+            {cmd: `adb shell input tap 50 1165`, delay: 1500},
             {cmd: `adb shell input tap 150 1150`, delay: 1500},
             {cmd: `adb shell input tap 150 1010`, delay: 1500},
             {cmd: `adb shell input tap 150 965`, delay: 1500},
