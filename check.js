@@ -128,7 +128,7 @@ function findTexts(node, collectedTexts, resourceId) {
 
 async function updateOrderStatusOnFirstServer(serverId, newStatus) {
     try {
-        const response = await axios.put(`http://localhost:3001/orders/${serverId}/status`, {
+        const response = await axios.put(`http://45.12.73.68:3000/orders/${serverId}/status`, {
             status: newStatus
         }, {
             headers: {
