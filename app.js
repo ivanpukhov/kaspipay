@@ -5,7 +5,7 @@ const Order = require('./model');
 const sequelize = require('./database');
 const {scrollAndAnalyze} = require("./check");
 
-const token = '6515597075:AAHwpV7yxqCa7ilXrP6bwOJp65xdlWCUHW4';
+const token = '8104835409:AAEcMWZLCTbrDHGDwb6XZllenx77ip95kEs';
 const bot = new TelegramBot(token, {polling: true});
 const app = express();
 const port = 3030;
@@ -32,31 +32,25 @@ const generateRandomString = (length) => {
 };
 
 bot.on('message', async (msg) => {
-    if (msg.chat.id === -1002037248488) {
-        const regex = /ID: (\d+)\nНомер: (\d+)\nКомментарий: (.+)\nЦена: (\d+)\nИмя клиента: (.+)\nИндекс: (.+)\nГород: (.+)\nУлица: (.+)\nДом: (.+)\nСпособ доставки: (.+)\nСпособ оплаты: (.+)/;
+    if (msg.chat.id === -1002309879116) {
+        const regex = /ID: (\d+)\nНомер: (\d+)\nКомментарий: (.+)\nЦена: (\d+)/;
         const matches = msg.text.match(regex);
 
         if (matches) {
-            const [, id, number, comment, price, customerName, addressIndex, city, street, houseNumber, deliveryMethod, paymentMethod] = matches;
-            const fullStreet = `${city} ${street} ${houseNumber}`;
-            const fullComment = comment + generateRandomString(5);  // Предполагается, что функция generateRandomString уже определена
+            const [, id, number, comment, price] = matches;
+            const fullComment = comment + generateRandomString(5); // Допустим, generateRandomString определена
 
             await Order.create({
                 serverId: id,
                 price,
                 number,
                 comment: fullComment,
-                kot: customerName,
-                user_input: addressIndex,
-                street: fullStreet,
-                deliveryMethod,
-                paymentMethod,
                 isProcessed: false,
                 isPaid: false,
                 isSend: false
             });
 
-            console.log('Заказ сохранен в базе данных');
+            console.log('Сообщение обработано и заказ сохранен.');
         } else {
             console.error('Сообщение не соответствует ожидаемому формату');
         }
@@ -71,7 +65,7 @@ async function updateOrderStatusOnFirstServer(orderId, newStatus) {
     };
 
     try {
-        const response = await axios.put(`http://45.12.73.68:3000/orders/${orderId}/status`, {
+        const response = await axios.put(`http://localhost:3001/transactions//${orderId}/status`, {
             status: newStatus
         }, config);
 
@@ -85,11 +79,10 @@ async function updateOrderStatusOnFirstServer(orderId, newStatus) {
 async function processOrders() {
     if (isProcessing) return;
     isProcessing = true;
-    await scrollAndAnalyze();
+    // await scrollAndAnalyze();
     const orderToProcess = await Order.findOne({
         where: {
             isProcessed: false,
-            paymentMethod: 'kaspi'
         }
 
     });
@@ -127,7 +120,7 @@ async function processOrders() {
 
         orderToProcess.isProcessed = true;
         await orderToProcess.save();
-        await updateOrderStatusOnFirstServer(orderToProcess.serverId, 'Ожидает оплаты');
+        await updateOrderStatusOnFirstServer(orderToProcess.serverId, 'waiting_for_payment');
         console.log(`Заказ ID: ${orderToProcess.id} обработан`);
     }
 

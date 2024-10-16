@@ -84,12 +84,11 @@ async function processUIDump() {
         for (const comment of collectedTexts) {
             const order = await Order.findOne({where: {comment}});
             if (order && !order.isPaid) {
-                const isSuccess = await updateOrderStatusOnFirstServer(order.serverId, 'Оплачено');
+                const isSuccess = await updateOrderStatusOnFirstServer(order.serverId, 'success');
                 if (isSuccess) {
                     order.isPaid = true;
                     await order.save();
                     console.log(`Заказ с ID ${order.serverId} обновлен как 'оплачено'`);
-                    await sendPostRequest(order);
                 } else {
                     console.log(`Не удалось обновить статус заказа с ID ${order.serverId}`);
                 }
@@ -98,20 +97,6 @@ async function processUIDump() {
     });
 }
 
-async function sendPostRequest(order) {
-    try {
-        const response = await axios.post('http://localhost:5000/process', {
-            kot: order.kot,
-            user_input: order.user_input,
-            street: order.street,
-            number: order.number,
-            serverId: order.serverId
-        });
-        console.log('POST-запрос успешно отправлен:', response.data);
-    } catch (error) {
-        console.error('Ошибка при отправке POST-запроса:', error);
-    }
-}
 
 function findTexts(node, collectedTexts, resourceId) {
     if (node && Array.isArray(node)) {
@@ -128,7 +113,7 @@ function findTexts(node, collectedTexts, resourceId) {
 
 async function updateOrderStatusOnFirstServer(serverId, newStatus) {
     try {
-        const response = await axios.put(`http://45.12.73.68:3000/orders/${serverId}/status`, {
+        const response = await axios.put(`http://localhost:3001/transactions/${serverId}/status`, {
             status: newStatus
         }, {
             headers: {
