@@ -11,6 +11,7 @@ const app = express();
 const port = 3030;
 let isProcessing = false;
 const axios = require('axios');
+const { log } = require('console');
 
 
 
@@ -33,15 +34,15 @@ const generateRandomString = (length) => {
 
 bot.on('message', async (msg) => {
     if (msg.chat.id === -1002309879116) {
-        const regex = /ID: (\d+)\nНомер: (\d+)\nКомментарий: (.+)\nЦена: (\d+)/;
+        const regex = /Сумма: (\d+) Тенге\nТелефон: (\d+)\nКомментарий: (\d+)\nТранзакция ID: (\d+)/;
         const matches = msg.text.match(regex);
 
         if (matches) {
-            const [, id, number, comment, price] = matches;
+            const [, price, number, comment, serverId] = matches; // Правильный порядок переменных
             const fullComment = comment + generateRandomString(5); // Допустим, generateRandomString определена
 
             await Order.create({
-                serverId: id,
+                serverId,
                 price,
                 number,
                 comment: fullComment,
@@ -51,9 +52,11 @@ bot.on('message', async (msg) => {
             });
 
             console.log('Сообщение обработано и заказ сохранен.');
+            console.log(price)
         } else {
             console.error('Сообщение не соответствует ожидаемому формату');
         }
+
     }
 });
 
@@ -79,7 +82,7 @@ async function updateOrderStatusOnFirstServer(orderId, newStatus) {
 async function processOrders() {
     if (isProcessing) return;
     isProcessing = true;
-    // await scrollAndAnalyze();
+    await scrollAndAnalyze();
     const orderToProcess = await Order.findOne({
         where: {
             isProcessed: false,
@@ -88,20 +91,19 @@ async function processOrders() {
     });
     if (orderToProcess) {
         const commands = [
-            {cmd: `adb shell input tap 163 1083`, delay: 1500},
+            {cmd: `adb shell input tap 200 1555`, delay: 1500},
             {cmd: `adb shell input swipe 300 500 300 900 200`, delay: 1000},
-            {cmd: `adb shell input tap 150 400`, delay: 1500},
+            {cmd: `adb shell input tap 150 600`, delay: 1500},
             {cmd: `adb shell input text '${orderToProcess.price}'`, delay: 1500},
-            {cmd: `adb shell input tap 50 570`, delay: 1500},
+            {cmd: `adb shell input tap 460 775`, delay: 1500},
             {cmd: `adb shell input text '${orderToProcess.number}'`, delay: 1500},
-            {cmd: `adb shell input tap 50 910`, delay: 1500},
+            {cmd: `adb shell input tap 512 1067`, delay: 1500},
             {cmd: `adb shell input text '${orderToProcess.comment}'`, delay: 1500},
+            {cmd: `adb shell input tap 70 1573`, delay: 1500},
             {cmd: `adb shell input swipe 300 500 300 900 200`, delay: 1000},
-            {cmd: `adb shell input tap 50 1165`, delay: 1500},
-            {cmd: `adb shell input tap 150 1150`, delay: 1500},
-            {cmd: `adb shell input tap 150 1010`, delay: 1500},
-            {cmd: `adb shell input tap 150 965`, delay: 1500},
-            {cmd: `adb shell input tap 150 1100`, delay: 1500},
+            {cmd: `adb shell input tap 381 1372`, delay: 1500},
+            {cmd: `adb shell input tap 400 1549`, delay: 1500},
+            {cmd: `adb shell input tap 200 1555`, delay: 1500},
         ];
 
         for (const {cmd, delay} of commands) {

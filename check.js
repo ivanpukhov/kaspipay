@@ -1,12 +1,12 @@
-const {exec} = require('child_process');
-const fs = require('fs');
+const { exec } = require('child_process');
+const fs = require('fs').promises;
 const axios = require('axios');
 const xml2js = require('xml2js');
 const parser = new xml2js.Parser();
 const Order = require('./model');
 
 async function adbCommand(command) {
-    while (true) {
+    for (let attempts = 0; attempts < 3; attempts++) {
         try {
             return await new Promise((resolve, reject) => {
                 exec(command, (error, stdout, stderr) => {
@@ -21,82 +21,70 @@ async function adbCommand(command) {
         } catch (error) {
             console.error('Ошибка при выполнении команды:', error);
             console.log('Перезапуск сервера ADB...');
-            exec('adb kill-server && adb start-server', (killError) => {
-                if (killError) {
-                    console.error('Ошибка при перезапуске сервера ADB:', killError);
-                } else {
-                    console.log('Сервер ADB успешно перезапущен.');
-                }
-            });
+            await restartADBServer();
         }
     }
+    throw new Error('Не удалось выполнить команду после нескольких попыток');
 }
 
+async function restartADBServer() {
+    return new Promise((resolve, reject) => {
+        exec('adb kill-server && adb start-server', (error) => {
+            if (error) {
+                console.error('Ошибка при перезапуске сервера ADB:', error);
+                reject(error);
+            } else {
+                console.log('Сервер ADB успешно перезапущен.');
+                resolve();
+            }
+        });
+    });
+}
 
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function checkDevice() {
-    let deviceFound = false;
-    while (!deviceFound) {
-        try {
-            const devices = await adbCommand('adb devices');
-            if (devices.includes('device')) {
-                deviceFound = true;
-                console.log('Устройство обнаружено.');
-            } else {
-                console.log('Устройство не обнаружено. Повторная попытка через 5 секунд.');
-                await delay(5000);
-            }
-        } catch (error) {
-            console.error('Ошибка при проверке устройства:', error);
-            console.log('Повторная попытка через 5 секунд.');
-            await delay(5000);
-        }
+    const devices = await adbCommand('adb devices');
+    if (!devices.includes('device')) {
+        throw new Error('Устройство не обнаружено.');
     }
+    console.log('Устройство обнаружено.');
 }
 
 async function scrollToTop() {
     console.log('Прокрутка до самого верха страницы...');
     await checkDevice();
     await adbCommand('adb shell input tap 281 1073');
-    for (let i = 0; i < 5; i++) {
-        await checkDevice();
-        await adbCommand('adb shell input swipe 100 700 100 1000');
-        await delay(100);
-    }
+    await adbCommand('adb shell input swipe 100 700 100 1000');
+    await delay(500);
 }
 
 async function processUIDump() {
     await checkDevice();
     await adbCommand('adb shell uiautomator dump /sdcard/ui_dump.xml');
-    await checkDevice();
     await adbCommand('adb pull /sdcard/ui_dump.xml ./ui_dump.xml');
-    const uiDump = fs.readFileSync('ui_dump.xml', 'utf8');
-    parser.parseString(uiDump, async (err, result) => {
-        if (err) {
-            console.error('Ошибка при разборе XML:', err);
-            return;
-        }
-        let collectedTexts = [];
-        findTexts(result.hierarchy.node, collectedTexts, 'hr.asseco.android.kaspibusiness:id/sellerComment');
-        for (const comment of collectedTexts) {
-            const order = await Order.findOne({where: {comment}});
-            if (order && !order.isPaid) {
-                const isSuccess = await updateOrderStatusOnFirstServer(order.serverId, 'success');
-                if (isSuccess) {
-                    order.isPaid = true;
-                    await order.save();
-                    console.log(`Заказ с ID ${order.serverId} обновлен как 'оплачено'`);
-                } else {
-                    console.log(`Не удалось обновить статус заказа с ID ${order.serverId}`);
-                }
+    const uiDump = await fs.readFile('ui_dump.xml', 'utf8');
+    const result = await parser.parseStringPromise(uiDump);
+
+    let collectedTexts = [];
+    findTexts(result.hierarchy.node, collectedTexts, 'hr.asseco.android.kaspibusiness:id/sellerComment');
+
+    for (const comment of collectedTexts) {
+        const order = await Order.findOne({ where: { comment } });
+        if (order && !order.isPaid) {
+            const isSuccess = await updateOrderStatusOnFirstServer(order.serverId, 'success');
+            if (isSuccess) {
+                order.isPaid = true;
+                await order.save();
+                console.log(`Заказ с ID ${order.serverId} обновлен как 'оплачено'`);
+            } else {
+                console.log(`Не удалось обновить статус заказа с ID ${order.serverId}`);
             }
         }
-    });
+    }
 }
-
 
 function findTexts(node, collectedTexts, resourceId) {
     if (node && Array.isArray(node)) {
@@ -113,16 +101,17 @@ function findTexts(node, collectedTexts, resourceId) {
 
 async function updateOrderStatusOnFirstServer(serverId, newStatus) {
     try {
-        const response = await axios.put(`http://localhost:3001/transactions/${serverId}/status`, {
+        const responseTendKz = await axios.patch(`https://tend.kz/api/transactions/${serverId}/status`, {
             status: newStatus
         }, {
             headers: {
-                'Authorization': `Bearer 56j48P2jHy38uvzrjtFNNkjlwdfkjbvwlkejgbUMqKhTzRjyIRj7xcmChhTYuF1VZuLLcGIsR4egG`
+                'Authorization': `Bearer jnfvkjsnjnvkerhfds`
             }
         });
-        return response.status === 200;
+
+        return responseTendKz.status === 200;
     } catch (error) {
-        console.error(`Ошибка при обновлении статуса заказа на первом сервере: ${error}`);
+        console.error(`Ошибка при обновлении статуса заказа на tend.kz: ${error}`);
         return false;
     }
 }
@@ -131,25 +120,22 @@ async function scrollAndAnalyze() {
     await scrollToTop();
     let endReached = false;
     let previousDump = '';
-    let currentDump = '';
     let attempts = 0;
-    while (!endReached) {
+
+    while (!endReached && attempts <= 30) {
         await processUIDump();
-        await delay(1000);
-        await delay(1000);
-        await delay(1000);
+        await delay(3000);
 
         await checkDevice();
         await adbCommand('adb shell uiautomator dump /sdcard/ui_dump.xml');
+        await adbCommand('adb pull /sdcard/ui_dump.xml ./ui_dump.xml');
 
-        await checkDevice();
-        await adbCommand('adb pull /sdcard/ui_dump.xml');
-        currentDump = fs.readFileSync('ui_dump.xml', 'utf8');
-        if (currentDump === previousDump || attempts > 30) {
+        const currentDump = await fs.readFile('ui_dump.xml', 'utf8');
+
+        if (currentDump === previousDump) {
             endReached = true;
-            console.log('Конец страницы достигнут или превышен лимит попыток.');
+            console.log('Конец страницы достигнут.');
         } else {
-            await checkDevice();
             await adbCommand('adb shell input swipe 100 850 100 500');
             previousDump = currentDump;
             attempts++;
