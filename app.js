@@ -68,7 +68,7 @@ async function updateOrderStatusOnFirstServer(orderId, newStatus) {
     };
 
     try {
-        const response = await axios.put(`http://localhost:3001/transactions//${orderId}/status`, {
+        const response = await axios.put(`https://tend.kz/transactions//${orderId}/status`, {
             status: newStatus
         }, config);
 
